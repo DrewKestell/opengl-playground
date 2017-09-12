@@ -98,7 +98,7 @@ int main()
 	Shader outlineShader ("outline.vs", "outline.fs");
 	// Shader skyboxShader("skybox.vs", "skybox.fs");	
 
-	Model rat("C:\\Repos\\opengl-playground\\opengl-playground\\opengl-playground\\models\\rat\\rat_plain.blend");
+	Model rat("C:\\Users\\Drew\\Repos\\opengl-playground\\opengl-playground\\models\\rat\\rat_plain.blend");
 
 	shader.use();
 
