@@ -55,5 +55,29 @@
     <None Include="vertex_shader">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="skybox.fs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="skybox.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="text.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="text.fs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="toon.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="toon.fs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="outline.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="outline.fs">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
