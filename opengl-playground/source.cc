@@ -22,6 +22,7 @@ void processInput(GLFWwindow *window);
 unsigned int loadTexture(char const *path);
 unsigned int loadCubemap(vector<std::string> faces);
 void RenderText(Shader &shader, std::string text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color);
+void renderQuad();
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -38,8 +39,8 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-// directional light
-glm::vec3 lightDir(-0.6f, -0.8f, -0.3f);
+// directional light - combine these two properties
+glm::vec3 lightDir(-2.0f, 4.0f, -1.0f); // used in lighting calculations in frag shader
 
 // text
 struct Character {
@@ -83,93 +84,122 @@ int main()
 		return -1;
 	}
 
-	// configure global openGL state
+	// enable OpenGL state
+	glClearColor(0.537f, 0.827f, 0.984f, 1.0f);
+	glEnable(GL_FRAMEBUFFER_SRGB);
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
-	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-	glEnable(GL_CULL_FACE);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE); // toon shader outline
+	glEnable(GL_CULL_FACE); // performance
+	glEnable(GL_BLEND); // for text
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // for text
 
 	// compile shader program
 	Shader shader("toon.vs", "toon.fs");
-	Shader outlineShader ("outline.vs", "outline.fs");
-	// Shader skyboxShader("skybox.vs", "skybox.fs");	
+	Shader outlineShader("outline.vs", "outline.fs");
+	Shader skyboxShader("skybox.vs", "skybox.fs");
+	Shader shadowMapShader("shadowmap.vs", "shadowmap.fs");
+	Shader shadowMapDebugShader("shadowDebug.vs", "shadowDebug.fs");
 
-	Model rat("C:\\Users\\Drew\\Repos\\opengl-playground\\opengl-playground\\models\\rat\\rat_plain.blend");
-
-	shader.use();
+	Model rat("C:\\Users\\Drew\\Repos\\opengl-playground\\opengl-playground\\models\\rat\\rat.blend");
+	Model ground("C:\\Users\\Drew\\Repos\\opengl-playground\\opengl-playground\\models\\plane\\plane.blend");
 
 	// configure directional light
+	shader.use();	
 	shader.setVec3("dirLight.direction", lightDir);
 	shader.setVec3("dirLight.ambient", 0.1f, 0.1f, 0.1f);
 	shader.setVec3("dirLight.diffuse", 0.5f, 0.5f, 0.5f);
 	shader.setVec3("dirLight.specular", 1.0f, 1.0f, 1.0f);
 
+	// configure depth map FBO
+	// -----------------------
+	const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+	unsigned int depthMapFBO;
+	glGenFramebuffers(1, &depthMapFBO);
+	// create depth texture
+	unsigned int depthMap;
+	glGenTextures(1, &depthMap);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	// attach depth texture as FBO's depth buffer
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	// shader configuration
+	// --------------------
+	shadowMapDebugShader.use();
+	shadowMapDebugShader.setInt("depthMap", 0);
+
 	// cubemap
-	/*
+	
+	/*std::string fileExtension = "jpg";
 	vector<std::string> faces
-	{
-		"right.jpg",
-			"left.jpg",
-			"top.jpg",
-			"bottom.jpg",
-			"back.jpg",
-			"front.jpg"
-	};
-	*/
-	//unsigned int cubemapTexture = loadCubemap(faces);
+	{	
+	"front." + fileExtension,
+	"back." + fileExtension,
+	"top." + fileExtension,
+	"bottom." + fileExtension,	
+	"right." + fileExtension,	
+	"left." + fileExtension
+	};*/
+	
+	// unsigned int cubemapTexture = loadCubemap(faces);
+	
+	//float skyboxVertices[] = {
+	//// positions
+	//-1.0f,  1.0f, -1.0f,
+	//-1.0f, -1.0f, -1.0f,
+	//1.0f, -1.0f, -1.0f,
+	//1.0f, -1.0f, -1.0f,
+	//1.0f,  1.0f, -1.0f,
+	//-1.0f,  1.0f, -1.0f,
 
-	/*
-	float skyboxVertices[] = {
-		// positions          
-		-1.0f,  1.0f, -1.0f,
-		-1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
+	//-1.0f, -1.0f,  1.0f,
+	//-1.0f, -1.0f, -1.0f,
+	//-1.0f,  1.0f, -1.0f,
+	//-1.0f,  1.0f, -1.0f,
+	//-1.0f,  1.0f,  1.0f,
+	//-1.0f, -1.0f,  1.0f,
 
-		-1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
+	//1.0f, -1.0f, -1.0f,
+	//1.0f, -1.0f,  1.0f,
+	//1.0f,  1.0f,  1.0f,
+	//1.0f,  1.0f,  1.0f,
+	//1.0f,  1.0f, -1.0f,
+	//1.0f, -1.0f, -1.0f,
 
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
+	//-1.0f, -1.0f,  1.0f,
+	//-1.0f,  1.0f,  1.0f,
+	//1.0f,  1.0f,  1.0f,
+	//1.0f,  1.0f,  1.0f,
+	//1.0f, -1.0f,  1.0f,
+	//-1.0f, -1.0f,  1.0f,
 
-		-1.0f, -1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
+	//-1.0f,  1.0f, -1.0f,
+	//1.0f,  1.0f, -1.0f,
+	//1.0f,  1.0f,  1.0f,
+	//1.0f,  1.0f,  1.0f,
+	//-1.0f,  1.0f,  1.0f,
+	//-1.0f,  1.0f, -1.0f,
 
-		-1.0f,  1.0f, -1.0f,
-		1.0f,  1.0f, -1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		1.0f, -1.0f,  1.0f
-	};
+	//-1.0f, -1.0f, -1.0f,
+	//-1.0f, -1.0f,  1.0f,
+	//1.0f, -1.0f, -1.0f,
+	//1.0f, -1.0f, -1.0f,
+	//-1.0f, -1.0f,  1.0f,
+	//1.0f, -1.0f,  1.0f
+	//};
 
 	// skybox VAO
-	unsigned int skyboxVAO, skyboxVBO;
+	/*unsigned int skyboxVAO, skyboxVBO;
 	glGenVertexArrays(1, &skyboxVAO);
 	glGenBuffers(1, &skyboxVBO);
 	glBindVertexArray(skyboxVAO);
@@ -179,8 +209,7 @@ int main()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
 	skyboxShader.use();
-	skyboxShader.setInt("skybox", 0);
-	*/
+	skyboxShader.setInt("skybox", 0);*/
 
 	// font test
 	Shader textShader("text.vs", "text.fs");
@@ -267,64 +296,103 @@ int main()
 		// handle input
 		processInput(window);
 
-		// render		
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+		// FIRST PASS: draw shadow map
+		glm::mat4 lightProjection, lightView;
+		glm::mat4 lightSpaceMatrix;
+		float near_plane = 1.0f, far_plane = 15.0f;
+		lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+		lightView = glm::lookAt(lightDir, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+		lightSpaceMatrix = lightProjection * lightView;
+		shadowMapShader.use();
+		shadowMapShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+		glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glm::mat4 ratModelTransform;
+		ratModelTransform = glm::translate(ratModelTransform, glm::vec3(0.0f, -1.75f, 0.0f));
+		shadowMapShader.setMat4("model", ratModelTransform);
+		rat.DrawShadows(shadowMapShader);		
+		glm::mat4 groundModelTransform;
+		groundModelTransform = glm::translate(groundModelTransform, glm::vec3(-1.0f, -3.2f, -2.0f));
+		shadowMapShader.setMat4("model", groundModelTransform);
+		ground.DrawShadows(shadowMapShader);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// SECOND PASS: draw scene
+		glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT); // clear both the background fill color and the depth buffer
+
+		// ----- DEBUG: render shadow map -----
+		/*shadowMapDebugShader.use();
+		shadowMapDebugShader.setFloat("near_plane", near_plane);
+		shadowMapDebugShader.setFloat("far_plane", far_plane);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, depthMap);
+		renderQuad();*/
 
 		// shared matrices		
 		glm::mat4 view = camera.GetViewMatrix();
 		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-		
+
 		outlineShader.use();
 		outlineShader.setMat4("view", view);
 		outlineShader.setMat4("projection", projection);
-		
-		shader.use();		
+
+		shader.use();
 		shader.setMat4("projection", projection);
 		shader.setMat4("view", view);
+		shader.setVec3("viewPos", camera.Position);
+		shader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, depthMap);
+
+		shader.setMat4("model", groundModelTransform);
+		ground.Draw(shader);
+
+		glEnable(GL_STENCIL_TEST); // toon shader outline
+		glStencilFunc(GL_NOTEQUAL, 1, 0xFF); // toon shader outline
+		
 
 		// draw rat model - first pass we draw as normal, writing to the stencil buffer
 		glStencilFunc(GL_ALWAYS, 1, 0xFF);
 		glStencilMask(0xFF);
-		glm::mat4 model;
-		model = glm::translate(model, glm::vec3(0.0f, -1.75, 0.0f));
-		// model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
-		shader.setMat4("model", model);
-		rat.Draw(shader);
+		shader.setMat4("model", ratModelTransform);
+		rat.Draw(shader);		
 
 		// second pass - draw slight scaled versions, disabling stencil writing. only draw fragments that aren't already written to the stencil buffer.
 		glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
 		glStencilMask(0x00);
 		glDisable(GL_DEPTH_TEST);
 		outlineShader.use();
-		model = glm::scale(model, glm::vec3(1.03f, 1.03f, 1.03f));
-		outlineShader.setMat4("model", model);
+		ratModelTransform = glm::scale(ratModelTransform, glm::vec3(1.03f, 1.03f, 1.03f));
+		outlineShader.setMat4("model", ratModelTransform);
 		rat.Draw(outlineShader);
 
 		glStencilMask(0xFF);
 		glEnable(GL_DEPTH_TEST);
-
+		glDisable(GL_STENCIL_TEST);
 		RenderText(textShader, "FPS: " + std::to_string(1 / deltaTime), 25.0f, 25.0f, 1.0f, glm::vec3(0.5, 0.8f, 0.2f));
+		
 
-		/*
+		
 		// draw skybox last
-		glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
-		skyboxShader.use();
-		view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // remove translation from the view matrix
-		skyboxShader.setMat4("view", view);
-		skyboxShader.setMat4("projection", projection);
-		// skybox cube
-		glBindVertexArray(skyboxVAO);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glBindVertexArray(0);
-		glDepthFunc(GL_LESS); // set depth function back to default
-		*/
+		//glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+		//skyboxShader.use();
+		//view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // remove translation from the view matrix
+		//skyboxShader.setMat4("view", view);
+		//skyboxShader.setMat4("projection", projection);
+		//// skybox cube
+		//glBindVertexArray(skyboxVAO);
+		//glActiveTexture(GL_TEXTURE0);
+		//glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+		//glDrawArrays(GL_TRIANGLES, 0, 36);
+		//glBindVertexArray(0);
+		//glDepthFunc(GL_LESS); // set depth function back to default
+		
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
-		glfwPollEvents();		
+		glfwPollEvents();
 	}
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
@@ -501,4 +569,35 @@ void RenderText(Shader &shader, std::string text, GLfloat x, GLfloat y, GLfloat 
 	}
 	glBindVertexArray(0);
 	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+// renderQuad() renders a 1x1 XY quad in NDC
+// -----------------------------------------
+unsigned int quadVAO = 0;
+unsigned int quadVBO;
+void renderQuad()
+{
+	if (quadVAO == 0)
+	{
+		float quadVertices[] = {
+			// positions        // texture Coords
+			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+			1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+			1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+		};
+		// setup plane VAO
+		glGenVertexArrays(1, &quadVAO);
+		glGenBuffers(1, &quadVBO);
+		glBindVertexArray(quadVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	}
+	glBindVertexArray(quadVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glBindVertexArray(0);
 }

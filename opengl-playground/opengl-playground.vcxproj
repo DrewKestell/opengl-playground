@@ -130,6 +130,10 @@
   <ItemGroup>
     <None Include="outline.fs" />
     <None Include="outline.vs" />
+    <None Include="shadowDebug.fs" />
+    <None Include="shadowDebug.vs" />
+    <None Include="shadowmap.fs" />
+    <None Include="shadowmap.vs" />
     <None Include="skybox.fs" />
     <None Include="skybox.vs" />
     <None Include="fragment_shader" />

@@ -79,5 +79,17 @@
     <None Include="outline.fs">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="shadowmap.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shadowmap.fs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shadowDebug.vs">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shadowDebug.fs">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
